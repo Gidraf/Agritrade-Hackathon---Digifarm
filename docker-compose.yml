@@ -58,8 +58,8 @@ services:
         condition: service_healthy
     env_file: .env
     environment:
-      DATABASE_URL: postgresql://agri:${POSTGRES_PASSWORD:-agri_secret}@postgres:5444/agri_arbitrage
-      REDIS_URL: redis://redis:6384/0
+      DATABASE_URL: postgresql://agri:${POSTGRES_PASSWORD:-agri_secret}@postgres:5432/agri_arbitrage
+      REDIS_URL: redis://redis:6379/0
       SMTP_HOST: mailhog
       SMTP_PORT: 1025
       JWT_SECRET: agritrade_fixed_secret_2026
@@ -83,8 +83,8 @@ services:
         condition: service_healthy
     env_file: .env
     environment:
-      DATABASE_URL: postgresql://agri:${POSTGRES_PASSWORD:-agri_secret}@postgres:5444/agri_arbitrage
-      REDIS_URL: redis://redis:6384/0
+      DATABASE_URL: postgresql://agri:${POSTGRES_PASSWORD:-agri_secret}@postgres:5432/agri_arbitrage
+      REDIS_URL: redis://redis:6379/0
       SMTP_HOST: mailhog
       SMTP_PORT: 1025
       JWT_SECRET: agritrade_fixed_secret_2026
@@ -105,36 +105,12 @@ services:
         condition: service_healthy
     env_file: .env
     environment:
-      DATABASE_URL: postgresql://agri:${POSTGRES_PASSWORD:-agri_secret}@postgres:5444/agri_arbitrage
-      REDIS_URL: redis://redis:6384/0
+      DATABASE_URL: postgresql://agri:${POSTGRES_PASSWORD:-agri_secret}@postgres:5432/agri_arbitrage
+      REDIS_URL: redis://redis:6379/0
       JWT_SECRET: agritrade_fixed_secret_2026
     volumes:
       - ./app:/app
     tmpfs: /celerybeat-data   # <-- schedule file stored in memory (ephemeral)
     command: celery -A tasks.celery beat --loglevel=info -s /celerybeat-data/celerybeat-schedule
 
-volumes:
-  postgres_data:
-  redis_data:
 
-  # ── Next.js Frontend ──────────────────────────────────────────────────────
-  # frontend:
-  #   build:
-  #     context: ./frontend
-  #     dockerfile: Dockerfile
-  #   restart: unless-stopped
-  #   depends_on:
-  #     - api
-  #   environment:
-  #     NEXT_PUBLIC_API_URL: http://localhost:5000
-  #     NEXT_PUBLIC_WS_URL: ws://localhost:5000
-  #   ports:
-  #     - "3000:3000"
-  #   volumes:
-  #     - ./frontend:/app
-  #     - /app/node_modules
-  #     - /app/.next
-
-# volumes:
-#   postgres_data:
-#   redis_data:
