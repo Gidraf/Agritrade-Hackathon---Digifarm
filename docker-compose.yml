@@ -14,7 +14,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "5444:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U agri"]
       interval: 5s
@@ -64,7 +64,7 @@ services:
       SMTP_PORT: 1025
       JWT_SECRET: agritrade_fixed_secret_2026
     ports:
-      - "5000:5000"
+      - "5060:5000"
     volumes:
       - ./app:/app
     command: >
