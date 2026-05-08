@@ -113,4 +113,7 @@ services:
     tmpfs: /celerybeat-data   # <-- schedule file stored in memory (ephemeral)
     command: celery -A tasks.celery beat --loglevel=info -s /celerybeat-data/celerybeat-schedule
 
+volumes:
+  postgres_data:
+  redis_data:
 
