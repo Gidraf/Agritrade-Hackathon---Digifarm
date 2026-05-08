@@ -1,0 +1,140 @@
+version: "3.9"
+
+
+services:
+
+  # ── PostgreSQL ────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: agri_arbitrage
+      POSTGRES_USER: agri
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agri_secret}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agri"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis (Pub/Sub + Celery broker + SocketIO message queue) ─────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── MailHog (local SMTP server for dev/testing) ───────────────────────────
+  mailhog:
+    image: mailhog/mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    logging:
+      driver: "none"
+
+  # ── Flask API + SocketIO ──────────────────────────────────────────────────
+  api:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://agri:${POSTGRES_PASSWORD:-agri_secret}@postgres:5432/agri_arbitrage
+      REDIS_URL: redis://redis:6379/0
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+      JWT_SECRET: agritrade_fixed_secret_2026
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./app:/app
+    command: >
+      sh -c "python seed.py && python app.py"
+
+  # ── Celery Worker (price simulation + arbitrage scanner) ─────────────────
+  celery_worker:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://agri:${POSTGRES_PASSWORD:-agri_secret}@postgres:5432/agri_arbitrage
+      REDIS_URL: redis://redis:6379/0
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+      JWT_SECRET: agritrade_fixed_secret_2026
+    volumes:
+      - ./app:/app
+    command: celery -A tasks.celery worker --loglevel=info --concurrency=4
+
+  # ── Celery Beat (scheduler – market calendar + morning blasts) ───────────
+  celery_beat:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://agri:${POSTGRES_PASSWORD:-agri_secret}@postgres:5432/agri_arbitrage
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: agritrade_fixed_secret_2026
+    volumes:
+      - ./app:/app
+    tmpfs: /celerybeat-data   # <-- schedule file stored in memory (ephemeral)
+    command: celery -A tasks.celery beat --loglevel=info -s /celerybeat-data/celerybeat-schedule
+
+volumes:
+  postgres_data:
+  redis_data:
+
+  # ── Next.js Frontend ──────────────────────────────────────────────────────
+  # frontend:
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: Dockerfile
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - api
+  #   environment:
+  #     NEXT_PUBLIC_API_URL: http://localhost:5000
+  #     NEXT_PUBLIC_WS_URL: ws://localhost:5000
+  #   ports:
+  #     - "3000:3000"
+  #   volumes:
+  #     - ./frontend:/app
+  #     - /app/node_modules
+  #     - /app/.next
+
+# volumes:
+#   postgres_data:
+#   redis_data:
