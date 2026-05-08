@@ -26,7 +26,7 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "6384:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -58,8 +58,8 @@ services:
         condition: service_healthy
     env_file: .env
     environment:
-      DATABASE_URL: postgresql://agri:${POSTGRES_PASSWORD:-agri_secret}@postgres:5432/agri_arbitrage
-      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql://agri:${POSTGRES_PASSWORD:-agri_secret}@postgres:5444/agri_arbitrage
+      REDIS_URL: redis://redis:6384/0
       SMTP_HOST: mailhog
       SMTP_PORT: 1025
       JWT_SECRET: agritrade_fixed_secret_2026
@@ -83,8 +83,8 @@ services:
         condition: service_healthy
     env_file: .env
     environment:
-      DATABASE_URL: postgresql://agri:${POSTGRES_PASSWORD:-agri_secret}@postgres:5432/agri_arbitrage
-      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql://agri:${POSTGRES_PASSWORD:-agri_secret}@postgres:5444/agri_arbitrage
+      REDIS_URL: redis://redis:6384/0
       SMTP_HOST: mailhog
       SMTP_PORT: 1025
       JWT_SECRET: agritrade_fixed_secret_2026
@@ -105,8 +105,8 @@ services:
         condition: service_healthy
     env_file: .env
     environment:
-      DATABASE_URL: postgresql://agri:${POSTGRES_PASSWORD:-agri_secret}@postgres:5432/agri_arbitrage
-      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql://agri:${POSTGRES_PASSWORD:-agri_secret}@postgres:5444/agri_arbitrage
+      REDIS_URL: redis://redis:6384/0
       JWT_SECRET: agritrade_fixed_secret_2026
     volumes:
       - ./app:/app
