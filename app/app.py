@@ -12,10 +12,14 @@ from flask_cors import CORS
 from flask_socketio import SocketIO
 from werkzeug.security import generate_password_hash, check_password_hash
 import jwt
+import os
+from openai import OpenAI
 from sqlalchemy import text
 
 app = Flask(__name__)
 CORS(app, origins="*", supports_credentials=True)
+
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 DB_URL        = os.getenv("DATABASE_URL", "sqlite:///agri.db")
 REDIS_URL     = os.getenv("REDIS_URL", "redis://localhost:6379/0")
@@ -548,38 +552,25 @@ def _check_and_consume_token(user):
     }
 
 
-def call_claude(system_prompt: str, user_message: str, max_tokens: int = 900) -> str | None:
+def call_openai(system_prompt: str, user_message: str, max_tokens: int = 900) -> str | None:
     """
-    Call Anthropic claude-sonnet-4-20250514. Returns text or None if unavailable.
+    Call OpenAI Responses API. Returns text or None if unavailable.
     None signals caller to use generated demo data instead.
     """
-    if not ANTHROPIC_KEY:
-        return None
-    try:
-        resp = req_lib.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": ANTHROPIC_KEY,
-                "content-type": "application/json",
-                "anthropic-version": "2023-06-01",
-            },
-            json={
-                "model": "claude-sonnet-4-20250514",
-                "max_tokens": max_tokens,
-                "system": system_prompt,
-                "messages": [{"role": "user", "content": user_message}],
-            },
-            timeout=45,
-        )
-        data = resp.json()
-        if resp.status_code != 200:
-            print(f"[claude] HTTP {resp.status_code}: {data}")
-            return None
-        return data.get("content", [{}])[0].get("text", "")
-    except Exception as e:
-        print(f"[claude] error: {e}")
+    if not os.getenv("OPENAI_API_KEY"):
         return None
 
+    try:
+        resp = client.responses.create(
+            model="gpt-5.5",
+            instructions=system_prompt,
+            input=user_message,
+            max_output_tokens=max_tokens,
+        )
+        return resp.output_text or ""
+    except Exception as e:
+        print(f"[openai] error: {e}")
+        return None
 
 def _faida_demo(c, o, t, buy_price, sell_price, spread, net_per_kg, dist, tc, wx_o):
     """Deterministic demo data when no Anthropic key is configured."""
@@ -1172,7 +1163,7 @@ def faida_dispatch():
         MarketDay.scheduled_date <= date.today() + timedelta(days=14),
     ).first()
 
-    ai_text = call_claude(
+    ai_text = call_openai(
         system_prompt="""You are AgriTrade Faida Dispatcher — East Africa's most precise agricultural trade intelligence system.
 Analyze commodity arbitrage routes with rigorous attention to real-world Kenya logistics, weather risk, and market microstructure.
 Respond ONLY with valid JSON. Zero prose outside the JSON structure. No markdown code fences.""",
@@ -1275,7 +1266,7 @@ def ajiriwa_analyze():
     # Counter: meet 65% of the way to fair value
     counter_price = bid.bid_price + (fair_price - bid.bid_price) * 0.65
 
-    ai_text = call_claude(
+    ai_text = call_openai(
         system_prompt="""You are Ajiriwa — AgriTrade's autonomous negotiation intelligence.
 You protect smallholder farmers and brokers from below-market bids.
 Analyse bids with precision using real Kenya market data. Always respond in valid JSON only.""",
@@ -1480,7 +1471,7 @@ def dev_ai_brief():
         p = latest_price(m.id, com.id)
         if p: price_lines.append(f"  - {m.name} ({m.region}): KES {p:.2f}/{com.unit}")
 
-    ai_text = call_claude(
+    ai_text = call_openai(
         system_prompt="You are AgriTrade market analyst. Provide concise, data-driven market briefs for the East African agricultural market. Be specific about prices, trends, and actionable advice. Respond in plain text (not JSON).",
         user_message=f"""Write a 3-paragraph market intelligence brief for {com.name} ({com.emoji}):
 
