@@ -278,7 +278,7 @@ class AiUsage(db.Model):
 
 
 class AiNegotiation(db.Model):
-    """Stores Ajiriwa negotiation state for a bid."""
+    """Stores Mshauri negotiation state for a bid."""
     id               = db.Column(db.Integer, primary_key=True)
     bid_id           = db.Column(db.Integer, db.ForeignKey("bid.id"), unique=True, nullable=False)
     status           = db.Column(db.String(50), default="analyzing")
@@ -628,7 +628,7 @@ def _faida_demo(c, o, t, buy_price, sell_price, spread, net_per_kg, dist, tc, wx
     }
 
 
-def _ajiriwa_demo(bid, com, market_avg, fair_price, counter_price, discount_pct):
+def _Mshauri_demo(bid, com, market_avg, fair_price, counter_price, discount_pct):
     position = "AT_MARKET" if abs(discount_pct) < 3 else ("ABOVE_MARKET" if discount_pct < 0 else "BELOW_MARKET")
     return {
         "fair_price": round(fair_price, 2),
@@ -1248,14 +1248,14 @@ Return ONLY this JSON (no other text):
     return jsonify(result)
 
 
-# ─── AI — AJIRIWA NEGOTIATION ENGINE ─────────────────────────────────────────
+# ─── AI — Mshauri NEGOTIATION ENGINE ─────────────────────────────────────────
 
-@app.route("/api/ai/ajiriwa/analyze", methods=["POST"])
+@app.route("/api/ai/Mshauri/analyze", methods=["POST"])
 @require_auth
-def ajiriwa_analyze():
+def Mshauri_analyze():
     """
-    Ajiriwa engine: analyze a bid against fair market value and suggest a counter-offer.
-    Triggered by Farmer/Broker clicking "Analyze with Ajiriwa" on a bid.
+    Mshauri engine: analyze a bid against fair market value and suggest a counter-offer.
+    Triggered by Farmer/Broker clicking "Analyze with Mshauri" on a bid.
     Costs 1 AI token.
     """
     ok, quota = _check_and_consume_token(g.user)
@@ -1280,7 +1280,7 @@ def ajiriwa_analyze():
     counter_price = bid.bid_price + (fair_price - bid.bid_price) * 0.65
 
     ai_text = call_openai(
-        system_prompt="""You are Ajiriwa — AgriTrade's autonomous negotiation intelligence.
+        system_prompt="""You are Mshauri — AgriTrade's autonomous negotiation intelligence.
 You protect smallholder farmers and brokers from below-market bids.
 Analyse bids with precision using real Kenya market data. Always respond in valid JSON only.""",
         user_message=f"""Analyze this marketplace bid:
@@ -1317,12 +1317,12 @@ Return ONLY this JSON:
     )
 
     if ai_text is None:
-        data = _ajiriwa_demo(bid, com, market_avg, fair_price, counter_price, discount_pct)
+        data = _Mshauri_demo(bid, com, market_avg, fair_price, counter_price, discount_pct)
     else:
         try:
             data = json.loads(ai_text)
         except json.JSONDecodeError:
-            data = _ajiriwa_demo(bid, com, market_avg, fair_price, counter_price, discount_pct)
+            data = _Mshauri_demo(bid, com, market_avg, fair_price, counter_price, discount_pct)
 
     # Persist negotiation state
     neg = bid.negotiation
@@ -1347,21 +1347,21 @@ Return ONLY this JSON:
     data["bid_price"]= bid.bid_price
 
     # Emit to buyer so they see the negotiation is active
-    socketio.emit("ajiriwa_analyzed", {
+    socketio.emit("Mshauri_analyzed", {
         "bid_id": bid.id,
         "commodity": com.name,
         "counter_price": neg.ai_counter_price,
         "status": "suggested",
     }, namespace="/")
     _notify_user(bid.buyer_id,
-                 f"🤝 Ajiriwa counter on your {com.name} bid: KES {neg.ai_counter_price:.0f}/{com.unit}")
+                 f"🤝 Mshauri counter on your {com.name} bid: KES {neg.ai_counter_price:.0f}/{com.unit}")
 
     return jsonify(data)
 
 
-@app.route("/api/ai/ajiriwa/action", methods=["POST"])
+@app.route("/api/ai/Mshauri/action", methods=["POST"])
 @require_auth
-def ajiriwa_action():
+def Mshauri_action():
     """
     Seller/Buyer takes action on a negotiation:
     action: accept_bid | accept_counter | reject | buyer_counter
@@ -1420,7 +1420,7 @@ def ajiriwa_action():
     return jsonify(bid_to_dict(bid))
 
 
-@app.route("/api/ai/ajiriwa/<int:bid_id>")
+@app.route("/api/ai/Mshauri/<int:bid_id>")
 @require_auth
 def get_negotiation(bid_id):
     bid = Bid.query.get_or_404(bid_id)
@@ -1504,7 +1504,7 @@ Be specific with KES amounts. Max 200 words.""",
         ai_text = (f"{com.name} market is active across {len(markets)} monitored markets. "
                    f"Prices range from KES {min(p for p in [latest_price(m.id, com.id) for m in markets] if p) if any(latest_price(m.id, com.id) for m in markets) else 'N/A'} "
                    f"to KES {max(p for p in [latest_price(m.id, com.id) for m in markets] if p) if any(latest_price(m.id, com.id) for m in markets) else 'N/A'}/{com.unit}. "
-                   f"Set ANTHROPIC_API_KEY for full AI analysis.")
+                   f"Analysis not Available")
 
     g.api_key.ai_call_count += 1
     db.session.commit()
