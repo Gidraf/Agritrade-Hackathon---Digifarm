@@ -13,13 +13,13 @@ from flask_socketio import SocketIO
 from werkzeug.security import generate_password_hash, check_password_hash
 import jwt
 import os
-from openai import OpenAI
 from sqlalchemy import text
+
+OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 
 app = Flask(__name__)
 CORS(app, origins="*", supports_credentials=True)
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 DB_URL        = os.getenv("DATABASE_URL", "sqlite:///agri.db")
 REDIS_URL     = os.getenv("REDIS_URL", "redis://localhost:6379/0")
@@ -552,25 +552,38 @@ def _check_and_consume_token(user):
     }
 
 
-def call_openai(system_prompt: str, user_message: str, max_tokens: int = 900) -> str | None:
-    """
-    Call OpenAI Responses API. Returns text or None if unavailable.
-    None signals caller to use generated demo data instead.
-    """
-    if not os.getenv("OPENAI_API_KEY"):
+def call_openai(system_prompt, user_message, max_tokens=900):
+    if not OPENAI_KEY:
         return None
 
     try:
-        resp = client.responses.create(
-            model="gpt-5.5",
-            instructions=system_prompt,
-            input=user_message,
-            max_output_tokens=max_tokens,
+        resp = req_lib.post(
+            "https://api.openai.com/v1/responses",
+            headers={
+                "Authorization": f"Bearer {OPENAI_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "gpt-5.5",
+                "instructions": system_prompt,
+                "input": user_message,
+                "max_output_tokens": max_tokens,
+            },
+            timeout=45,
         )
-        return resp.output_text or ""
+
+        data = resp.json()
+
+        if resp.status_code != 200:
+            print(data)
+            return None
+
+        return data.get("output_text", "")
+
     except Exception as e:
-        print(f"[openai] error: {e}")
+        print(e)
         return None
+    
 
 def _faida_demo(c, o, t, buy_price, sell_price, spread, net_per_kg, dist, tc, wx_o):
     """Deterministic demo data when no Anthropic key is configured."""
